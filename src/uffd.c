@@ -24,12 +24,6 @@
 /* poll */
 #include <poll.h>
 
-#define ABORT(msg)                                                             \
-  do {                                                                         \
-    perror(msg);                                                               \
-    exit(EXIT_FAILURE);                                                        \
-  } while (0)
-
 static void *uffd_handler(void *arg) {
   long uffd = *(int *)arg;
 

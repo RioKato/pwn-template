@@ -148,7 +148,7 @@ struct msgbuf *new_msgbuf(size_t size) {
 void kmalloc_msg(int *msgid, size_t size) {
   assert(size <= PAGE_SIZE && size >= HDRLEN_MSG);
 
-  if (!msgid) {
+  if (*msgid == -1) {
     *msgid = msgget(IPC_PRIVATE, 0666 | IPC_CREAT);
     if (*msgid == -1) {
       ABORT("msgget");
@@ -167,7 +167,7 @@ void kmalloc_msg(int *msgid, size_t size) {
 void kmalloc_msgseg(int *msgid, size_t size) {
   assert(size <= PAGE_SIZE && size >= HDRLEN_SEG);
 
-  if (!msgid) {
+  if (*msgid == -1) {
     *msgid = msgget(IPC_PRIVATE, 0666 | IPC_CREAT);
     if (*msgid == -1) {
       ABORT("msgget");
@@ -344,6 +344,5 @@ void dump(uint8_t *p, size_t len) {
   }
 }
 #endif
-
 
 #endif
