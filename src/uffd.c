@@ -1,3 +1,5 @@
+#include "kutil.c"
+
 #include <errno.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -29,10 +31,9 @@
   } while (0)
 
 static void *uffd_handler(void *arg) {
-  long uffd = (long)arg;
-  int page_size = sysconf(_SC_PAGE_SIZE);
+  long uffd = *(int *)arg;
 
-  void *page = mmap(NULL, page_size, PROT_READ | PROT_WRITE,
+  void *page = mmap(NULL, PAGE_SIZE, PROT_READ | PROT_WRITE,
                     MAP_PRIVATE | MAP_ANON, -1, 0);
   if (page == MAP_FAILED)
     ABORT("mmap");
@@ -50,7 +51,7 @@ static void *uffd_handler(void *arg) {
     struct uffd_msg uffd_msg;
     ssize_t nread = read(uffd, &uffd_msg, sizeof(uffd_msg));
     if (nread == 0) {
-      printf("EOF on userfaultfd!\n");
+      fprintf(stderr, "EOF on userfaultfd!\n");
       exit(EXIT_FAILURE);
     }
 
@@ -70,8 +71,8 @@ static void *uffd_handler(void *arg) {
     struct uffdio_copy uffdio_copy;
     uffdio_copy.src = (unsigned long)page;
     uffdio_copy.dst =
-        (unsigned long)uffd_msg.arg.pagefault.address & ~(page_size - 1);
-    uffdio_copy.len = page_size;
+        (unsigned long)uffd_msg.arg.pagefault.address & ~(PAGE_SIZE - 1);
+    uffdio_copy.len = PAGE_SIZE;
     uffdio_copy.mode = 0;
     uffdio_copy.copy = 0;
     if (ioctl(uffd, UFFDIO_COPY, &uffdio_copy) == -1)
@@ -98,7 +99,7 @@ void uffd_run(void *addr, uint64_t len) {
     ABORT("ioctl-UFFDIO_REGISTER");
 
   pthread_t thread;
-  int err = pthread_create(&thread, NULL, uffd_handler, (void *)uffd);
+  int err = pthread_create(&thread, NULL, uffd_handler, (void *)&uffd);
   if (err != 0) {
     errno = err;
     ABORT("pthread_create");
@@ -106,7 +107,7 @@ void uffd_run(void *addr, uint64_t len) {
 }
 
 int main() {
-  void *addr = mmap(0x77770000, 0x1000, PROT_READ | PROT_WRITE,
+  void *addr = mmap((void *)0x77770000, 0x1000, PROT_READ | PROT_WRITE,
                     MAP_FIXED | MAP_PRIVATE | MAP_ANON, -1, 0);
   if (addr == MAP_FAILED)
     ABORT("mmap");

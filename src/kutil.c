@@ -1,7 +1,11 @@
+#ifndef __KUTIL_H__
+#define __KUTIL_H__
+
 #define USE_KMALLOC32
 #define USE_KMALLOC256
 #define USE_KMALLOC1024
 #define USE_ROP
+#define USE_COMM
 #define USE_DUMP
 
 #include <stdio.h>
@@ -12,7 +16,7 @@
     exit(EXIT_FAILURE);                                                        \
   } while (0)
 
-#define PAGE 0x1000
+#define PAGE_SIZE 0x1000
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 #if defined(USE_KMALLOC32)
@@ -53,7 +57,7 @@ void kfree_seq_operations(int fd) { close(fd); }
 #include <sys/shm.h>
 
 int kmalloc32_shm_file_data() {
-  int id = shmget(IPC_PRIVATE, PAGE, 0600);
+  int id = shmget(IPC_PRIVATE, PAGE_SIZE, 0600);
   if (id == -1) {
     ABORT("shmget");
   }
@@ -121,12 +125,14 @@ void kfree_tty_struct(int fd) { close(fd); }
 #define HDRLEN_MSG 0x30
 #define HDRLEN_SEG 0x08
 #define MTEXTLEN_MSG(size) ((size)-HDRLEN_MSG)
-#define MTEXTLEN_SEG(size) ((size) + PAGE - HDRLEN_MSG - HDRLEN_SEG)
+#define MTEXTLEN_SEG(size) ((size) + PAGE_SIZE - HDRLEN_MSG - HDRLEN_SEG)
 
+#if defined(__GLIBC__)
 struct msgbuf {
   long mtype;
   char mtext[1];
 };
+#endif
 
 struct msgbuf *new_msgbuf(size_t size) {
   struct msgbuf *msgbuf = (struct msgbuf *)malloc(sizeof(long) + size);
@@ -140,7 +146,7 @@ struct msgbuf *new_msgbuf(size_t size) {
 }
 
 void kmalloc_msg(int *msgid, size_t size) {
-  assert(size <= PAGE && size >= HDRLEN_MSG);
+  assert(size <= PAGE_SIZE && size >= HDRLEN_MSG);
 
   if (!msgid) {
     *msgid = msgget(IPC_PRIVATE, 0666 | IPC_CREAT);
@@ -159,7 +165,7 @@ void kmalloc_msg(int *msgid, size_t size) {
 }
 
 void kmalloc_msgseg(int *msgid, size_t size) {
-  assert(size <= PAGE && size >= HDRLEN_SEG);
+  assert(size <= PAGE_SIZE && size >= HDRLEN_SEG);
 
   if (!msgid) {
     *msgid = msgget(IPC_PRIVATE, 0666 | IPC_CREAT);
@@ -178,7 +184,7 @@ void kmalloc_msgseg(int *msgid, size_t size) {
 }
 
 struct msgbuf *kfree_msg(int msgid, size_t size) {
-  assert(size <= PAGE && size >= HDRLEN_MSG);
+  assert(size <= PAGE_SIZE && size >= HDRLEN_MSG);
 
   struct msgbuf *msgbuf = new_msgbuf(MTEXTLEN_MSG(size));
   int err = msgrcv(msgid, msgbuf, MTEXTLEN_MSG(size), 0, 0);
@@ -190,7 +196,7 @@ struct msgbuf *kfree_msg(int msgid, size_t size) {
 }
 
 struct msgbuf *kfree_msgseg(int msgid, size_t size) {
-  assert(size <= PAGE && size >= HDRLEN_SEG);
+  assert(size <= PAGE_SIZE && size >= HDRLEN_SEG);
 
   struct msgbuf *msgbuf = new_msgbuf(MTEXTLEN_SEG(size));
   int err = msgrcv(msgid, msgbuf, MTEXTLEN_SEG(size), 0, 0);
@@ -202,7 +208,7 @@ struct msgbuf *kfree_msgseg(int msgid, size_t size) {
 }
 
 struct msgbuf *peek_msg(int msgid, size_t size) {
-  assert(size <= PAGE && size >= HDRLEN_MSG);
+  assert(size <= PAGE_SIZE && size >= HDRLEN_MSG);
 
   struct msgbuf *msgbuf = new_msgbuf(MTEXTLEN_MSG(size));
   int err = msgrcv(msgid, msgbuf, MTEXTLEN_MSG(size), 0, MSG_COPY | IPC_NOWAIT);
@@ -214,7 +220,7 @@ struct msgbuf *peek_msg(int msgid, size_t size) {
 }
 
 struct msgbuf *peek_msgseg(int msgid, size_t size) {
-  assert(size <= PAGE && size >= HDRLEN_SEG);
+  assert(size <= PAGE_SIZE && size >= HDRLEN_SEG);
 
   struct msgbuf *msgbuf = new_msgbuf(MTEXTLEN_SEG(size));
   int err = msgrcv(msgid, msgbuf, MTEXTLEN_SEG(size), 0, MSG_COPY | IPC_NOWAIT);
@@ -291,6 +297,17 @@ void rop_iretq(unsigned long *p, void *rip) {
 #endif
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+#ifdef USE_COMM
+#include <sys/prctl.h>
+
+void set_comm(char *name) {
+  if (prctl(PR_SET_NAME, name) == -1) {
+    ABORT("prctl");
+  }
+}
+#endif
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 #ifdef USE_DUMP
 #include <stdint.h>
 #include <stdio.h>
@@ -326,4 +343,7 @@ void dump(uint8_t *p, size_t len) {
     printf("\n");
   }
 }
+#endif
+
+
 #endif
