@@ -1,5 +1,5 @@
-#ifndef __KUTIL_H__
-#define __KUTIL_H__
+#ifndef __KUTIL_C__
+#define __KUTIL_C__
 
 #define USE_KMALLOC32
 #define USE_KMALLOC256
@@ -8,11 +8,13 @@
 #define USE_COMM
 #define USE_DUMP
 
+#include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #define ABORT(msg)                                                             \
   do {                                                                         \
-    perror(msg);                                                               \
+    fprintf(stderr, "[%s] %s: %s\n", __func__, msg, strerror(errno));          \
     exit(EXIT_FAILURE);                                                        \
   } while (0)
 
@@ -123,9 +125,9 @@ void kfree_tty_struct(int fd) { close(fd); }
 
 #define MSG_COPY 040000
 #define HDRLEN_MSG 0x30
-#define HDRLEN_SEG 0x08
+#define HDRLEN_MSGSEG 0x08
 #define MTEXTLEN_MSG(size) ((size)-HDRLEN_MSG)
-#define MTEXTLEN_SEG(size) ((size) + PAGE_SIZE - HDRLEN_MSG - HDRLEN_SEG)
+#define MTEXTLEN_MSGSEG(size) ((size) + PAGE_SIZE - HDRLEN_MSG - HDRLEN_MSGSEG)
 
 #if defined(__GLIBC__)
 struct msgbuf {
@@ -145,42 +147,48 @@ struct msgbuf *new_msgbuf(size_t size) {
   return msgbuf;
 }
 
-void kmalloc_msg(int *msgid, size_t size) {
+int kmalloc_msg(size_t size, int n) {
   assert(size <= PAGE_SIZE && size >= HDRLEN_MSG);
 
-  if (*msgid == -1) {
-    *msgid = msgget(IPC_PRIVATE, 0666 | IPC_CREAT);
-    if (*msgid == -1) {
-      ABORT("msgget");
-    }
+  int msgid = msgget(IPC_PRIVATE, 0666 | IPC_CREAT);
+  if (msgid == -1) {
+    ABORT("msgget");
   }
 
   struct msgbuf *msgbuf = new_msgbuf(MTEXTLEN_MSG(size));
-  int err = msgsnd(*msgid, msgbuf, MTEXTLEN_MSG(size), 0);
-  if (err == -1) {
-    ABORT("msgsnd");
-  }
 
-  free(msgbuf);
-}
-
-void kmalloc_msgseg(int *msgid, size_t size) {
-  assert(size <= PAGE_SIZE && size >= HDRLEN_SEG);
-
-  if (*msgid == -1) {
-    *msgid = msgget(IPC_PRIVATE, 0666 | IPC_CREAT);
-    if (*msgid == -1) {
-      ABORT("msgget");
+  int i;
+  for (i = 0; i < n; i++) {
+    int err = msgsnd(msgid, msgbuf, MTEXTLEN_MSG(size), IPC_NOWAIT);
+    if (err == -1) {
+      ABORT("msgsnd");
     }
   }
 
-  struct msgbuf *msgbuf = new_msgbuf(MTEXTLEN_SEG(size));
-  int err = msgsnd(*msgid, msgbuf, MTEXTLEN_SEG(size), 0);
-  if (err == -1) {
-    ABORT("msgsnd");
+  free(msgbuf);
+  return msgid;
+}
+
+int kmalloc_msgseg(size_t size, int n) {
+  assert(size <= PAGE_SIZE && size >= HDRLEN_MSGSEG);
+
+  int msgid = msgget(IPC_PRIVATE, 0666 | IPC_CREAT);
+  if (msgid == -1) {
+    ABORT("msgget");
+  }
+
+  struct msgbuf *msgbuf = new_msgbuf(MTEXTLEN_MSGSEG(size));
+
+  int i;
+  for (i = 0; i < n; i++) {
+    int err = msgsnd(msgid, msgbuf, MTEXTLEN_MSGSEG(size), IPC_NOWAIT);
+    if (err == -1) {
+      ABORT("msgsnd");
+    }
   }
 
   free(msgbuf);
+  return msgid;
 }
 
 struct msgbuf *kfree_msg(int msgid, size_t size) {
@@ -196,10 +204,10 @@ struct msgbuf *kfree_msg(int msgid, size_t size) {
 }
 
 struct msgbuf *kfree_msgseg(int msgid, size_t size) {
-  assert(size <= PAGE_SIZE && size >= HDRLEN_SEG);
+  assert(size <= PAGE_SIZE && size >= HDRLEN_MSGSEG);
 
-  struct msgbuf *msgbuf = new_msgbuf(MTEXTLEN_SEG(size));
-  int err = msgrcv(msgid, msgbuf, MTEXTLEN_SEG(size), 0, 0);
+  struct msgbuf *msgbuf = new_msgbuf(MTEXTLEN_MSGSEG(size));
+  int err = msgrcv(msgid, msgbuf, MTEXTLEN_MSGSEG(size), 0, 0);
   if (err == -1) {
     ABORT("msgrcv");
   }
@@ -220,10 +228,11 @@ struct msgbuf *peek_msg(int msgid, size_t size) {
 }
 
 struct msgbuf *peek_msgseg(int msgid, size_t size) {
-  assert(size <= PAGE_SIZE && size >= HDRLEN_SEG);
+  assert(size <= PAGE_SIZE && size >= HDRLEN_MSGSEG);
 
-  struct msgbuf *msgbuf = new_msgbuf(MTEXTLEN_SEG(size));
-  int err = msgrcv(msgid, msgbuf, MTEXTLEN_SEG(size), 0, MSG_COPY | IPC_NOWAIT);
+  struct msgbuf *msgbuf = new_msgbuf(MTEXTLEN_MSGSEG(size));
+  int err =
+      msgrcv(msgid, msgbuf, MTEXTLEN_MSGSEG(size), 0, MSG_COPY | IPC_NOWAIT);
   if (err == -1) {
     ABORT("msgrcv");
   }
