@@ -343,12 +343,12 @@ struct uffd_msg *userfaultfd_wait(int fd) {
     ABORT("malloc");
   }
 
-  ssize_t nread = read(fd, uffd_msg, sizeof(struct uffd_msg));
-  if (nread == -1) {
+  ssize_t n = read(fd, uffd_msg, sizeof(struct uffd_msg));
+  if (n == -1) {
     ABORT("read");
   }
 
-  assert(nread == sizeof(struct uffd_msg));
+  assert(n == sizeof(struct uffd_msg));
   assert(uffd_msg->event == UFFD_EVENT_PAGEFAULT);
 
   return uffd_msg;
