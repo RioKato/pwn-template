@@ -361,7 +361,8 @@ struct uffd_msg *userfaultfd_wait(int fd) {
 #include <sys/prctl.h>
 
 void set_comm(char *name) {
-  if (prctl(PR_SET_NAME, name) == -1) {
+  int err = prctl(PR_SET_NAME, name);
+  if (err == -1) {
     ABORT("prctl");
   }
 }
