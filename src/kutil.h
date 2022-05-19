@@ -6,6 +6,7 @@
 #define ENABLE_TIMERFD_CTX
 #define ENABLE_TTY_STRUCT
 #define ENABLE_MSG_MSG
+#define ENABLE_SETXATTR
 #define ENABLE_ROP
 #define ENABLE_USERFAULTFD
 #define ENABLE_COMM
@@ -219,6 +220,19 @@ struct msgbuf *peek_msgseg(int msgid, size_t size) {
 }
 #endif
 
+#ifdef ENABLE_SETXATTR
+#include <sys/types.h>
+#include <sys/xattr.h>
+
+void kmalloc_setxattr(size_t size, char *buf) {
+  int err = setxattr("/tmp", "x", buf, size, XATTR_CREATE);
+  if (err == -1) {
+    ABORT("setxattr");
+  }
+}
+
+#endif
+
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 #ifdef ENABLE_ROP
 #include <unistd.h>
@@ -287,6 +301,7 @@ void rop_iretq(unsigned long *p) {
 #include <fcntl.h>
 #include <linux/userfaultfd.h>
 #include <sys/ioctl.h>
+#include <sys/mman.h>
 #include <sys/stat.h>
 #include <sys/syscall.h>
 #include <sys/types.h>
@@ -352,6 +367,16 @@ struct uffd_msg *userfaultfd_wait(int fd) {
   assert(uffd_msg->event == UFFD_EVENT_PAGEFAULT);
 
   return uffd_msg;
+}
+
+void reenable_userfault(void *addr, size_t length) {
+  assert(((unsigned long)addr) % PAGE_SIZE == 0);
+  assert(length % PAGE_SIZE == 0);
+
+  int err = madvise(addr, length, MADV_DONTNEED);
+  if (err == -1) {
+    ABORT("madvise");
+  }
 }
 
 #endif
