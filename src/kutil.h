@@ -430,10 +430,9 @@ void set_comm(char *name) {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 #ifdef ENABLE_DUMP
-#include <stdint.h>
 #include <stdio.h>
 
-void dump(uint8_t *p, size_t len) {
+void dump(unsigned char *p, size_t len) {
   size_t i;
   for (i = 0; i + 16 <= len; i += 16) {
     printf("[%08zx] ", i);
@@ -444,7 +443,8 @@ void dump(uint8_t *p, size_t len) {
     }
 
     printf(" ");
-    printf("%016lx %016lx", ((uint64_t *)&p[i])[0], ((uint64_t *)&p[i])[1]);
+    printf("%016lx %016lx", ((unsigned long *)&p[i])[0],
+           ((unsigned long *)&p[i])[1]);
 
     printf(" ");
     for (j = 0; j < 16; j++) {
