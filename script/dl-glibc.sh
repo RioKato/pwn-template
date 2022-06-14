@@ -3,7 +3,7 @@
 URL=ftp://ftp.gnu.org/gnu/glibc/
 
 list(){
-  curl -s "$URL" | awk '/glibc-[0-9]+\.[0-9]+(\.[0-9]+)?\.tar\.gz$/{print $9}'
+  curl -s "$URL" | awk '/glibc-[0-9]+\.[0-9]+(\.[0-9]+)?\.tar\.gz$/{print $9}' | sort -V
 }
 
 download(){
