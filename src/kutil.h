@@ -343,7 +343,7 @@ void rop_swapgs_restore_regs_and_return_to_usermode(unsigned long *p) {
 #include <unistd.h>
 
 int userfaultfd() {
-  int fd = syscall(__NR_userfaultfd, O_CLOEXEC | O_NONBLOCK);
+  int fd = syscall(__NR_userfaultfd, O_CLOEXEC);
   if (fd == -1) {
     ABORT("syscall");
   }
