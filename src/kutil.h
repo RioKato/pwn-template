@@ -8,7 +8,7 @@
 #define ENABLE_MSG_MSG
 #define ENABLE_SETXATTR
 #define ENABLE_ROP
-#ifdef __GLIBC__
+#ifndef __GLIBC__
 #define ENABLE_USERFAULTFD
 #endif
 #define ENABLE_COMM
