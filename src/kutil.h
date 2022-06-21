@@ -434,6 +434,8 @@ void set_comm(char *name) {
 #ifdef ENABLE_DUMP
 #include <stdio.h>
 
+void wait() { getchar(); }
+
 void dump(unsigned char *p, size_t len) {
   size_t i;
   for (i = 0; i + 16 <= len; i += 16) {
