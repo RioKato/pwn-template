@@ -355,6 +355,8 @@ int userfaultfd() {
   if (err == -1) {
     ABORT("ioctl");
   }
+
+  return fd;
 }
 
 void userfaultfd_register(int fd, void *start, size_t len) {
