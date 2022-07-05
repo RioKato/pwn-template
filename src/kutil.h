@@ -5,12 +5,11 @@
 #define ENABLE_SHM_FILE_DATA
 #define ENABLE_TIMERFD_CTX
 #define ENABLE_TTY_STRUCT
+#define ENABLE_PIPE_BUFFER
 #define ENABLE_MSG_MSG
 #define ENABLE_SETXATTR
 #define ENABLE_ROP
-#ifndef __GLIBC__
 #define ENABLE_USERFAULTFD
-#endif
 #define ENABLE_MODPROBE_PATH
 #define ENABLE_COMM
 #define ENABLE_DUMP
@@ -105,6 +104,17 @@ int kmalloc1024_tty_struct() {
 }
 
 void kfree_tty_struct(int fd) { close(fd); }
+#endif
+
+#ifdef ENABLE_PIPE_BUFFER
+#include <unistd.h>
+
+void kmalloc1024_pipe_buffer(int pair[2]) {
+  if (pipe(pair) == -1) {
+    ABORT("pipe");
+  }
+}
+
 #endif
 
 #ifdef ENABLE_MSG_MSG
