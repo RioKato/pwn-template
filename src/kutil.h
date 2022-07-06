@@ -11,6 +11,7 @@
 #define ENABLE_ROP
 #define ENABLE_USERFAULTFD
 #define ENABLE_MODPROBE_PATH
+#define LOCK_CPU
 #define ENABLE_COMM
 #define ENABLE_DUMP
 
@@ -45,6 +46,7 @@ int kmalloc32_seq_operations() {
 void kfree_seq_operations(int fd) { close(fd); }
 #endif
 
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 #ifdef ENABLE_SHM_FILE_DATA
 #include <sys/ipc.h>
 #include <sys/shm.h>
@@ -64,6 +66,7 @@ int kmalloc32_shm_file_data() {
 }
 #endif
 
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 #ifdef ENABLE_TIMERFD_CTX
 #include <sys/timerfd.h>
 #include <unistd.h>
@@ -88,6 +91,7 @@ void kfree_timerfd_ctx(int fd) {
 }
 #endif
 
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 #ifdef ENABLE_TTY_STRUCT
 #include <fcntl.h>
 #include <sys/stat.h>
@@ -106,6 +110,7 @@ int kmalloc1024_tty_struct() {
 void kfree_tty_struct(int fd) { close(fd); }
 #endif
 
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 #ifdef ENABLE_PIPE_BUFFER
 #include <unistd.h>
 
@@ -117,6 +122,7 @@ void kmalloc1024_pipe_buffer(int pair[2]) {
 
 #endif
 
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 #ifdef ENABLE_MSG_MSG
 #include <sys/ipc.h>
 #include <sys/msg.h>
@@ -233,6 +239,7 @@ struct msgbuf *peek_msgseg(int msgid, size_t size) {
 }
 #endif
 
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 #ifdef ENABLE_SETXATTR
 #include <sys/types.h>
 #include <sys/xattr.h>
@@ -428,6 +435,7 @@ void reenable_userfault(void *addr, size_t length) {
 }
 
 #endif
+
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 #ifdef ENABLE_MODPROBE_PATH
 #include <stdio.h>
@@ -449,6 +457,23 @@ void exec_modprobe_path(char *path, char *command) {
       "/tmp/trigger;";
   snprintf(buffer, sizeof(buffer), format, path, command);
   system(buffer);
+}
+
+#endif
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+#ifdef LOCK_CPU
+#define _GNU_SOURCE
+#include <sched.h>
+
+void lock_cpu() {
+  cpu_set_t cpu_set;
+  CPU_ZERO(&cpu_set);
+  CPU_SET(0, &cpu_set);
+  int err = sched_setaffinity(0, sizeof(cpu_set), &cpu_set);
+  if (err == -1) {
+    ABORT("sched_setaffinity");
+  }
 }
 
 #endif
