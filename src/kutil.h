@@ -137,13 +137,6 @@ void kmalloc1024_pipe_buffer(int pair[2]) {
 #define MTEXTLEN_MSG(size) ((size)-HDRLEN_MSG)
 #define MTEXTLEN_MSGSEG(size) ((size) + PAGE_SIZE - HDRLEN_MSG - HDRLEN_MSGSEG)
 
-#ifdef __GLIBC__
-struct msgbuf {
-  long mtype;
-  char mtext[1];
-};
-#endif
-
 struct msgbuf *__new_msgbuf(size_t size) {
   struct msgbuf *msgbuf = (struct msgbuf *)malloc(sizeof(long) + size);
   if (!msgbuf) {
@@ -241,13 +234,33 @@ struct msgbuf *peek_msgseg(int msgid, size_t size) {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 #ifdef ENABLE_SETXATTR
+#include <errno.h>
+#include <limits.h>
+#include <stdio.h>
 #include <sys/types.h>
 #include <sys/xattr.h>
 
+int kmalloc_setxattr_counter = 0;
+
 void kmalloc_setxattr(size_t size, char *buf) {
+  char path[PATH_MAX];
+  snprintf(path, PATH_MAX, "/tmp/setxattr_%d", kmalloc_setxattr_counter++);
+
+  FILE *fp = fopen(path, "w");
+  if (fp == NULL) {
+    ABORT("fopen");
+  }
+  fclose(fp);
+
   int err = setxattr("/tmp", "x", buf, size, XATTR_CREATE);
   if (err == -1) {
-    ABORT("setxattr");
+    switch (errno) {
+    case EOPNOTSUPP:
+      /* vfs_setxattr may fail. but it's no problem. */
+      break;
+    default:
+      ABORT("setxattr");
+    }
   }
 }
 
@@ -463,7 +476,10 @@ void exec_modprobe_path(char *path, char *command) {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 #ifdef LOCK_CPU
+#ifndef _GNU_SOURCE
 #define _GNU_SOURCE
+#endif
+
 #include <sched.h>
 
 void lock_cpu() {
