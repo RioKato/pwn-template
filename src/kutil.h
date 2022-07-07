@@ -252,7 +252,8 @@ void kmalloc_setxattr(size_t size, char *buf) {
   }
   fclose(fp);
 
-  int err = setxattr("/tmp", "x", buf, size, XATTR_CREATE);
+  char *key = "ceb32713a5d2d2ca";
+  int err = setxattr(path, key, buf, size, XATTR_CREATE);
   if (err == -1) {
     switch (errno) {
     case EOPNOTSUPP:
