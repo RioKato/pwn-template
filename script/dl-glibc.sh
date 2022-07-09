@@ -10,18 +10,25 @@ download(){
   curl -O "$URL""$1"
 }
 
+clone(){
+  git clone https://sourceware.org/git/glibc.git
+}
+
 help(){
   echo "$0 [-l | -d libc]"
 }
 
 
-while getopts ld: OPT
+while getopts ld:c OPT
 do
   case $OPT in
     l) list
       exit 0
       ;;
     d) download $OPTARG
+      exit 0
+      ;;
+    c) clone
       exit 0
       ;;
   esac
