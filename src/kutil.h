@@ -480,11 +480,11 @@ void exec_modprobe_path(char *path) {
   }
 
   char magic[] = {0xff, 0xff, 0xff, 0xff};
-  size_t n = fwrite(magic, 1, 4, fp);
+  size_t n = fwrite(magic, 1, sizeof(magic), fp);
 
   fclose(fp);
 
-  if (n < 4) {
+  if (n < sizeof(magic)) {
     ABORT("fwrite");
   }
 
