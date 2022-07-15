@@ -477,6 +477,7 @@ void reenable_userfault(void *addr, size_t length) {
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/wait.h>
@@ -484,31 +485,35 @@ void reenable_userfault(void *addr, size_t length) {
 
 #define EXEC_MODPROBE_PATH_FILE "/tmp/trigger"
 
+void prepare_script(char *path, char *contents) {
+  FILE *fp = fopen(path, "w");
+  if (!fp) {
+    ABORT("fopen");
+  }
+
+  size_t len = strlen(contents);
+  size_t n = fwrite(contents, 1, len, fp);
+
+  if (n < len) {
+    ABORT("fwrite");
+  }
+
+  fclose(fp);
+
+  int err = chmod(path, S_IXUSR);
+  if (err == -1) {
+    ABORT("chmod");
+  }
+}
+
 void exec_modprobe_path(char *path) {
   if (!path) {
     path = EXEC_MODPROBE_PATH_FILE;
   }
 
-  FILE *fp = fopen(path, "wb");
-  if (!fp) {
-    ABORT("fopen");
-  }
+  char magic[] = {0xff, 0xff, 0xff, 0xff, 0x00};
 
-  char magic[] = {0xff, 0xff, 0xff, 0xff};
-  size_t n = fwrite(magic, 1, sizeof(magic), fp);
-
-  fclose(fp);
-
-  if (n < sizeof(magic)) {
-    ABORT("fwrite");
-  }
-
-  int err;
-
-  err = chmod(path, S_IXUSR);
-  if (err == -1) {
-    ABORT("chmod");
-  }
+  prepare_script(path, magic);
 
   pid_t pid = fork();
   if (pid == -1) {
@@ -518,7 +523,7 @@ void exec_modprobe_path(char *path) {
   if (!pid) {
     char *argv[] = {path, NULL};
     char *envp[] = {NULL};
-    err = execve(path, argv, envp);
+    int err = execve(path, argv, envp);
     if (err == -1) {
       switch (errno) {
       case ENOEXEC:
@@ -532,7 +537,7 @@ void exec_modprobe_path(char *path) {
   }
 
   int wstatus;
-  err = waitpid(pid, &wstatus, WUNTRACED);
+  int err = waitpid(pid, &wstatus, WUNTRACED);
   if (err == -1) {
     ABORT("waitpid");
   }
