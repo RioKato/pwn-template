@@ -11,7 +11,7 @@
 #define ENABLE_ROP
 #define ENABLE_USERFAULTFD
 #define ENABLE_MODPROBE_PATH
-#define LOCK_CPU
+#define ENABLE_LOCK_CPU
 #define ENABLE_COMM
 #define ENABLE_DUMP
 
@@ -569,7 +569,7 @@ void exec_modprobe_path(char *path) {
 #endif
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-#ifdef LOCK_CPU
+#ifdef ENABLE_LOCK_CPU
 #ifndef __USE_GNU
 #define __USE_GNU
 #endif
