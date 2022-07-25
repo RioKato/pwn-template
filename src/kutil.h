@@ -148,7 +148,7 @@ struct msgbuf *__new_msgbuf(size_t size) {
   }
 
   msgbuf->mtype = 1;
-  memset(msgbuf->mtext, 0x58585858, size);
+  memset(msgbuf->mtext, 0x58, size);
 
   return msgbuf;
 }
