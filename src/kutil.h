@@ -8,6 +8,7 @@
 #define ENABLE_PIPE_BUFFER
 #define ENABLE_MSG_MSG
 #define ENABLE_SETXATTR
+#define ENABLE_SK_BUFF
 #define ENABLE_ROP
 #define ENABLE_USERFAULTFD
 #define ENABLE_MODPROBE_PATH
@@ -313,7 +314,49 @@ void kmalloc_setxattr(size_t size, char *buf) {
   }
 }
 #endif
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+#ifdef ENABLE_SK_BUFF
+#include <assert.h>
+#include <sys/socket.h>
+#include <sys/types.h>
+#include <unistd.h>
 
+#define SKB_SHARED_INFO_SIZE 0x140
+
+void kmalloc_sk_buff(int pair[2], size_t size, char *data) {
+  assert(size >= SKB_SHARED_INFO_SIZE);
+
+  int err = socketpair(AF_UNIX, SOCK_STREAM, 0, pair);
+  if (err == -1) {
+    ABORT("socketpair");
+  }
+
+  int n = write(pair[0], data, size - SKB_SHARED_INFO_SIZE);
+  if (n == -1) {
+    ABORT("write");
+  }
+
+  assert(n == size - SKB_SHARED_INFO_SIZE);
+}
+
+char *kfree_sk_buff(int pair[2], size_t size) {
+  assert(size >= SKB_SHARED_INFO_SIZE);
+
+  char *data = (char *)malloc(size);
+  if (!data) {
+    ABORT("malloc");
+  }
+
+  int n = read(pair[1], data, size - SKB_SHARED_INFO_SIZE);
+  if (n == -1) {
+    ABORT("write");
+  }
+
+  assert(n == size - SKB_SHARED_INFO_SIZE);
+  return data;
+}
+
+#endif
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 #ifdef ENABLE_ROP
 #include <unistd.h>
