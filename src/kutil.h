@@ -502,10 +502,6 @@ void reenable_userfault(void *addr, size_t length) {
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/stat.h>
-#include <sys/types.h>
-#include <sys/wait.h>
-#include <unistd.h>
 
 #define EXEC_MODPROBE_PATH_FILE "/tmp/trigger"
 
@@ -536,34 +532,20 @@ void exec_modprobe_path(char *path) {
   }
 
   char magic[] = {0xff, 0xff, 0xff, 0xff, 0x00};
-
   prepare_script(path, magic);
 
-  pid_t pid = fork();
-  if (pid == -1) {
-    ABORT("fork");
-  }
-
-  if (!pid) {
-    char *argv[] = {path, NULL};
-    char *envp[] = {NULL};
-    int err = execve(path, argv, envp);
-    if (err == -1) {
-      switch (errno) {
-      case ENOEXEC:
-        break;
-      default:
-        ABORT("execve");
-      }
-    }
-
-    exit(EXIT_SUCCESS);
-  }
-
-  int wstatus;
-  int err = waitpid(pid, &wstatus, WUNTRACED);
+  char *argv[] = {path, NULL};
+  char *envp[] = {NULL};
+  int err = execve(path, argv, envp);
   if (err == -1) {
-    ABORT("waitpid");
+    switch (errno) {
+    case ENOEXEC:
+      break;
+    default:
+      ABORT("execve");
+    }
+  } else {
+    ABORT("execve");
   }
 }
 #endif
