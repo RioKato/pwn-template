@@ -32,6 +32,7 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 #ifdef ENABLE_LDT_STRUCT
 #include <asm/ldt.h>
+#include <errno.h>
 #include <sys/syscall.h>
 #include <sys/types.h>
 #include <unistd.h>
@@ -41,8 +42,8 @@
 
 void kmalloc16_ldt_struct() {
   struct user_desc desc;
-  desc.base_addr = 0xff0000;
-  desc.entry_number = 0x8000 / 8;
+  desc.base_addr = 0;
+  desc.entry_number = 0;
   desc.limit = 0;
   desc.seg_32bit = 0;
   desc.contents = 0;
@@ -58,12 +59,18 @@ void kmalloc16_ldt_struct() {
   }
 }
 
-long read_ldt_struct(size_t size, char *buf) {
-  if (!buf) {
-    buf = (char *)malloc(size);
+int read_ldt_struct(size_t size, char *buf) {
+  int err = syscall(SYS_modify_ldt, 0, buf, size);
+  if (err == -1) {
+    switch (errno) {
+    case EFAULT:
+      return -1;
+    default:
+      ABORT("syscall");
+    }
   }
 
-  return syscall(SYS_modify_ldt, 0, buf, size);
+  return 0;
 }
 #endif
 
