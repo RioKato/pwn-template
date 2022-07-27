@@ -128,12 +128,12 @@ void kmalloc1024_pipe_buffer(int pair[2]) {
 #define __USE_GNU
 #endif
 
+#include <assert.h>
+#include <stdlib.h>
+#include <string.h>
 #include <sys/ipc.h>
 #include <sys/msg.h>
 #include <sys/types.h>
-
-#include <assert.h>
-#include <string.h>
 
 #define MSG_COPY 040000
 #define HDRLEN_MSG 0x30
@@ -141,71 +141,82 @@ void kmalloc1024_pipe_buffer(int pair[2]) {
 #define MTEXTLEN_MSG(size) ((size)-HDRLEN_MSG)
 #define MTEXTLEN_MSGSEG(size) ((size) + PAGE_SIZE - HDRLEN_MSG - HDRLEN_MSGSEG)
 
-struct msgbuf *__new_msgbuf(size_t size) {
+#define MTYPE_DEFAULT 1
+
+struct msgbuf *__new_msgbuf(long mtype, size_t size, char *mtext) {
   struct msgbuf *msgbuf = (struct msgbuf *)malloc(sizeof(long) + size);
   if (!msgbuf) {
     ABORT("malloc");
   }
 
-  msgbuf->mtype = 1;
-  memset(msgbuf->mtext, 0x58, size);
+  msgbuf->mtype = mtype;
+  if (!mtext) {
+    memset(msgbuf->mtext, 0x58, size);
+  } else {
+    memcpy(msgbuf->mtext, mtext, size);
+  }
 
   return msgbuf;
 }
 
-int __kmalloc_msg(size_t size, int n, struct msgbuf *msgbuf) {
+int msgid() {
   int msgid = msgget(IPC_PRIVATE, 0666 | IPC_CREAT);
   if (msgid == -1) {
     ABORT("msgget");
   }
 
-  int i;
-  for (i = 0; i < n; i++) {
-    int err = msgsnd(msgid, msgbuf, size, IPC_NOWAIT);
-    if (err == -1) {
-      ABORT("msgsnd");
-    }
-  }
-
   return msgid;
 }
 
-int kmalloc_msg(size_t size, int n, char *mtext) {
-  assert(size <= PAGE_SIZE && size >= HDRLEN_MSG);
-
-  struct msgbuf *msgbuf = __new_msgbuf(MTEXTLEN_MSG(size));
-
-  if (mtext) {
-    memcpy(msgbuf->mtext, mtext, size - HDRLEN_MSG);
+void __kmalloc_msg(int msgid, size_t size, struct msgbuf *msgbuf) {
+  int err = msgsnd(msgid, msgbuf, size, IPC_NOWAIT);
+  if (err == -1) {
+    ABORT("msgsnd");
   }
-
-  int msgid = __kmalloc_msg(MTEXTLEN_MSG(size), n, msgbuf);
-  free(msgbuf);
-  return msgid;
-}
-
-int kmalloc_msgseg(size_t size, int n, char *mtext) {
-  assert(size <= PAGE_SIZE && size >= HDRLEN_MSGSEG);
-
-  struct msgbuf *msgbuf = __new_msgbuf(MTEXTLEN_MSGSEG(size));
-
-  if (mtext) {
-    memcpy(msgbuf->mtext + PAGE_SIZE - HDRLEN_MSG, mtext, size - HDRLEN_MSGSEG);
-  }
-
-  int msgid = __kmalloc_msg(MTEXTLEN_MSGSEG(size), n, msgbuf);
-  free(msgbuf);
-  return msgid;
 }
 
 struct msgbuf *__kfree_msg(int msgid, size_t size) {
-  struct msgbuf *msgbuf = __new_msgbuf(size);
+  struct msgbuf *msgbuf = __new_msgbuf(MTYPE_DEFAULT, size, NULL);
   int err = msgrcv(msgid, msgbuf, size, 0, IPC_NOWAIT);
   if (err == -1) {
     ABORT("msgrcv");
   }
 
   return msgbuf;
+}
+
+struct msgbuf *__peek_msg(int msgid, size_t size) {
+  struct msgbuf *msgbuf = __new_msgbuf(MTYPE_DEFAULT, size, NULL);
+  int err = msgrcv(msgid, msgbuf, size, 0, MSG_COPY | IPC_NOWAIT);
+  if (err == -1) {
+    ABORT("msgrcv");
+  }
+
+  return msgbuf;
+}
+
+void kmalloc_msg(int msgid, size_t size, char *mtext) {
+  assert(size <= PAGE_SIZE && size >= HDRLEN_MSG);
+
+  struct msgbuf *msgbuf =
+      __new_msgbuf(MTYPE_DEFAULT, MTEXTLEN_MSG(size), mtext);
+
+  __kmalloc_msg(msgid, MTEXTLEN_MSG(size), msgbuf);
+  free(msgbuf);
+}
+
+void kmalloc_msgseg(int msgid, size_t size, char *mtext) {
+  assert(size <= PAGE_SIZE && size >= HDRLEN_MSGSEG);
+
+  struct msgbuf *msgbuf =
+      __new_msgbuf(MTYPE_DEFAULT, MTEXTLEN_MSGSEG(size), NULL);
+
+  if (mtext) {
+    memcpy(msgbuf->mtext + PAGE_SIZE - HDRLEN_MSG, mtext, size - HDRLEN_MSGSEG);
+  }
+
+  __kmalloc_msg(msgid, MTEXTLEN_MSGSEG(size), msgbuf);
+  free(msgbuf);
 }
 
 char *kfree_msg(int msgid, size_t size) {
@@ -234,16 +245,6 @@ char *kfree_msgseg(int msgid, size_t size) {
   memcpy(mtext, msgbuf->mtext + PAGE_SIZE - HDRLEN_MSG, size - HDRLEN_MSGSEG);
   free(msgbuf);
   return mtext;
-}
-
-struct msgbuf *__peek_msg(int msgid, size_t size) {
-  struct msgbuf *msgbuf = __new_msgbuf(size);
-  int err = msgrcv(msgid, msgbuf, size, 0, MSG_COPY | IPC_NOWAIT);
-  if (err == -1) {
-    ABORT("msgrcv");
-  }
-
-  return msgbuf;
 }
 
 char *peek_msg(int msgid, size_t size) {
