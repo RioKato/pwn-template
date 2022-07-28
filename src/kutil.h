@@ -59,7 +59,7 @@ void kmalloc16_ldt_struct() {
   }
 }
 
-int read_ldt_struct(size_t size, char *buf) {
+int read_ldt_struct(char *buf, size_t size) {
   int err = syscall(SYS_modify_ldt, 0, buf, size);
   if (err == -1) {
     switch (errno) {
