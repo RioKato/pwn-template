@@ -165,6 +165,11 @@ void kmalloc1024_pipe_buffer(int pair[2]) {
   if (pipe(pair) == -1) {
     ABORT("pipe");
   }
+
+  ssize_t n = write(pair[1], "pipe", 5);
+  if (n == -1 || n != 5) {
+    ABORT("write");
+  }
 }
 #endif
 
@@ -379,7 +384,7 @@ void kmalloc_sk_buff(int pair[2], size_t size, char *data) {
     ABORT("socketpair");
   }
 
-  int n = write(pair[0], data, size - SKB_SHARED_INFO_SIZE);
+  ssize_t n = write(pair[0], data, size - SKB_SHARED_INFO_SIZE);
   if (n == -1 || n != size - SKB_SHARED_INFO_SIZE) {
     ABORT("write");
   }
@@ -393,7 +398,7 @@ char *kfree_sk_buff(int pair[2], size_t size) {
     ABORT("malloc");
   }
 
-  int n = read(pair[1], data, size - SKB_SHARED_INFO_SIZE);
+  ssize_t n = read(pair[1], data, size - SKB_SHARED_INFO_SIZE);
   if (n == -1 || n != size - SKB_SHARED_INFO_SIZE) {
     ABORT("write");
   }
