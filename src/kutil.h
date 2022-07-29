@@ -223,8 +223,8 @@ void __kmalloc_msg(int msgid, size_t size, struct msgbuf *msgbuf) {
 
 struct msgbuf *__kfree_msg(int msgid, size_t size) {
   struct msgbuf *msgbuf = __new_msgbuf(MTYPE_DEFAULT, size, NULL);
-  int err = msgrcv(msgid, msgbuf, size, 0, IPC_NOWAIT);
-  if (err == -1) {
+  int n = msgrcv(msgid, msgbuf, size, 0, IPC_NOWAIT);
+  if (n == -1 || n != size) {
     ABORT("msgrcv");
   }
 
@@ -233,8 +233,8 @@ struct msgbuf *__kfree_msg(int msgid, size_t size) {
 
 struct msgbuf *__peek_msg(int msgid, size_t size) {
   struct msgbuf *msgbuf = __new_msgbuf(MTYPE_DEFAULT, size, NULL);
-  int err = msgrcv(msgid, msgbuf, size, 0, MSG_COPY | IPC_NOWAIT);
-  if (err == -1) {
+  int n = msgrcv(msgid, msgbuf, size, 0, MSG_COPY | IPC_NOWAIT);
+  if (n == -1 || n != size) {
     ABORT("msgrcv");
   }
 
@@ -380,11 +380,9 @@ void kmalloc_sk_buff(int pair[2], size_t size, char *data) {
   }
 
   int n = write(pair[0], data, size - SKB_SHARED_INFO_SIZE);
-  if (n == -1) {
+  if (n == -1 || n != size - SKB_SHARED_INFO_SIZE) {
     ABORT("write");
   }
-
-  assert(n == size - SKB_SHARED_INFO_SIZE);
 }
 
 char *kfree_sk_buff(int pair[2], size_t size) {
@@ -396,11 +394,10 @@ char *kfree_sk_buff(int pair[2], size_t size) {
   }
 
   int n = read(pair[1], data, size - SKB_SHARED_INFO_SIZE);
-  if (n == -1) {
+  if (n == -1 || n != size - SKB_SHARED_INFO_SIZE) {
     ABORT("write");
   }
 
-  assert(n == size - SKB_SHARED_INFO_SIZE);
   return data;
 }
 #endif
