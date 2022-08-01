@@ -204,8 +204,6 @@ void kfree_pipe_buffer(int pair[2]) {
 #define MTEXTLEN_MSG(size) ((size)-HDRLEN_MSG)
 #define MTEXTLEN_MSGSEG(size) ((size) + PAGE_SIZE - HDRLEN_MSG - HDRLEN_MSGSEG)
 
-#define MTYPE_DEFAULT 1
-
 struct msgbuf *__new_msgbuf(long mtype, size_t size, char *mtext) {
   struct msgbuf *msgbuf = (struct msgbuf *)malloc(sizeof(long) + size);
   if (!msgbuf) {
@@ -238,8 +236,8 @@ void __kmalloc_msg(int msgid, size_t size, struct msgbuf *msgbuf) {
   }
 }
 
-struct msgbuf *__kfree_msg(int msgid, size_t size) {
-  struct msgbuf *msgbuf = __new_msgbuf(MTYPE_DEFAULT, size, NULL);
+struct msgbuf *__kfree_msg(int msgid, int mtype, size_t size) {
+  struct msgbuf *msgbuf = __new_msgbuf(mtype, size, NULL);
   int n = msgrcv(msgid, msgbuf, size, 0, IPC_NOWAIT);
   if (n == -1 || n != size) {
     ABORT("msgrcv");
@@ -248,8 +246,8 @@ struct msgbuf *__kfree_msg(int msgid, size_t size) {
   return msgbuf;
 }
 
-struct msgbuf *__peek_msg(int msgid, size_t size) {
-  struct msgbuf *msgbuf = __new_msgbuf(MTYPE_DEFAULT, size, NULL);
+struct msgbuf *__peek_msg(int msgid, int mtype, size_t size) {
+  struct msgbuf *msgbuf = __new_msgbuf(mtype, size, NULL);
   int n = msgrcv(msgid, msgbuf, size, 0, MSG_COPY | IPC_NOWAIT);
   if (n == -1 || n != size) {
     ABORT("msgrcv");
@@ -258,21 +256,19 @@ struct msgbuf *__peek_msg(int msgid, size_t size) {
   return msgbuf;
 }
 
-void kmalloc_msg(int msgid, size_t size, char *mtext) {
+void kmalloc_msg(int msgid, int mtype, size_t size, char *mtext) {
   assert(size <= PAGE_SIZE && size >= HDRLEN_MSG);
 
-  struct msgbuf *msgbuf =
-      __new_msgbuf(MTYPE_DEFAULT, MTEXTLEN_MSG(size), mtext);
+  struct msgbuf *msgbuf = __new_msgbuf(mtype, MTEXTLEN_MSG(size), mtext);
 
   __kmalloc_msg(msgid, MTEXTLEN_MSG(size), msgbuf);
   free(msgbuf);
 }
 
-void kmalloc_msgseg(int msgid, size_t size, char *mtext) {
+void kmalloc_msgseg(int msgid, int mtype, size_t size, char *mtext) {
   assert(size <= PAGE_SIZE && size >= HDRLEN_MSGSEG);
 
-  struct msgbuf *msgbuf =
-      __new_msgbuf(MTYPE_DEFAULT, MTEXTLEN_MSGSEG(size), NULL);
+  struct msgbuf *msgbuf = __new_msgbuf(mtype, MTEXTLEN_MSGSEG(size), NULL);
 
   if (mtext) {
     memcpy(msgbuf->mtext + PAGE_SIZE - HDRLEN_MSG, mtext, size - HDRLEN_MSGSEG);
@@ -282,10 +278,10 @@ void kmalloc_msgseg(int msgid, size_t size, char *mtext) {
   free(msgbuf);
 }
 
-char *kfree_msg(int msgid, size_t size) {
+char *kfree_msg(int msgid, int mtype, size_t size) {
   assert(size <= PAGE_SIZE && size >= HDRLEN_MSG);
 
-  struct msgbuf *msgbuf = __kfree_msg(msgid, MTEXTLEN_MSG(size));
+  struct msgbuf *msgbuf = __kfree_msg(msgid, mtype, MTEXTLEN_MSG(size));
   char *mtext = (char *)malloc(size);
   if (!mtext) {
     ABORT("malloc");
@@ -296,10 +292,10 @@ char *kfree_msg(int msgid, size_t size) {
   return mtext;
 }
 
-char *kfree_msgseg(int msgid, size_t size) {
+char *kfree_msgseg(int msgid, int mtype, size_t size) {
   assert(size <= PAGE_SIZE && size >= HDRLEN_MSGSEG);
 
-  struct msgbuf *msgbuf = __kfree_msg(msgid, MTEXTLEN_MSGSEG(size));
+  struct msgbuf *msgbuf = __kfree_msg(msgid, mtype, MTEXTLEN_MSGSEG(size));
   char *mtext = (char *)malloc(size);
   if (!mtext) {
     ABORT("malloc");
@@ -310,10 +306,10 @@ char *kfree_msgseg(int msgid, size_t size) {
   return mtext;
 }
 
-char *peek_msg(int msgid, size_t size) {
+char *peek_msg(int msgid, int mtype, size_t size) {
   assert(size <= PAGE_SIZE && size >= HDRLEN_MSG);
 
-  struct msgbuf *msgbuf = __peek_msg(msgid, MTEXTLEN_MSG(size));
+  struct msgbuf *msgbuf = __peek_msg(msgid, mtype, MTEXTLEN_MSG(size));
   char *mtext = (char *)malloc(size);
   if (!mtext) {
     ABORT("malloc");
@@ -324,10 +320,10 @@ char *peek_msg(int msgid, size_t size) {
   return mtext;
 }
 
-char *peek_msgseg(int msgid, size_t size) {
+char *peek_msgseg(int msgid, int mtype, size_t size) {
   assert(size <= PAGE_SIZE && size >= HDRLEN_MSGSEG);
 
-  struct msgbuf *msgbuf = __peek_msg(msgid, MTEXTLEN_MSGSEG(size));
+  struct msgbuf *msgbuf = __peek_msg(msgid, mtype, MTEXTLEN_MSGSEG(size));
   char *mtext = (char *)malloc(size);
   if (!mtext) {
     ABORT("malloc");
