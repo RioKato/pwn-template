@@ -98,7 +98,7 @@ void kfree_seq_operations(int fd) { close(fd); }
 #include <sys/ipc.h>
 #include <sys/shm.h>
 
-int kmalloc32_shm_file_data() {
+void *kmalloc32_shm_file_data() {
   int id = shmget(IPC_PRIVATE, PAGE_SIZE, 0600);
   if (id == -1) {
     ABORT("shmget");
@@ -109,7 +109,14 @@ int kmalloc32_shm_file_data() {
     ABORT("shmat");
   }
 
-  return id;
+  return addr;
+}
+
+void kfree_shm_file_data(void *addr) {
+  int err = shmdt(addr);
+  if (err == -1) {
+    ABORT("shmdt");
+  }
 }
 #endif
 
