@@ -786,60 +786,60 @@ void bpf_map_get_info_by_fd(int fd, struct bpf_map_info *info) {
   }
 }
 
-#define BPF_INSN(code, dst, src, off, imm)                                     \
-  ((struct bpf_insn){.code = (code),                                           \
-                     .dst_reg = (dst),                                         \
-                     .src_reg = (src),                                         \
-                     .off = (off),                                             \
-                     .imm = (imm)})
+#define BPF_INSN(CODE, DST, SRC, OFF, IMM)                                     \
+  ((struct bpf_insn){.code = (CODE),                                           \
+                     .dst_reg = (DST),                                         \
+                     .src_reg = (SRC),                                         \
+                     .off = (OFF),                                             \
+                     .imm = (IMM)})
 
-#define BPF_LD_MAP_FD(dst, fd)                                                 \
-  BPF_INSN(BPF_LD | BPF_DW | BPF_IMM, dst, BPF_PSEUDO_MAP_FD, 0,               \
-           (uint32_t)imm),                                                     \
-      BPF_INSN(0, 0, 0, 0, ((uint64_t)(imm)) >> 32)
+#define BPF_LD_MAP_FD(DST, FD)                                                 \
+  BPF_INSN(BPF_LD | BPF_DW | BPF_IMM, DST, BPF_PSEUDO_MAP_FD, 0,               \
+           (uint32_t)FD),                                                      \
+      BPF_INSN(0, 0, 0, 0, ((uint64_t)(FD)) >> 32)
 
-#define BPF_LD_IMM64(dst, imm)                                                 \
-  BPF_INSN(BPF_LD | BPF_DW | BPF_IMM, dst, 0, 0, (uint32_t)imm),               \
-      BPF_INSN(0, 0, 0, 0, ((uint64_t)(imm)) >> 32)
+#define BPF_LD_IMM64(DST, IMM)                                                 \
+  BPF_INSN(BPF_LD | BPF_DW | BPF_IMM, DST, 0, 0, (uint32_t)IMM),               \
+      BPF_INSN(0, 0, 0, 0, ((uint64_t)(IMM)) >> 32)
 
-#define BPF_LD_IMM32(dst, imm)                                                 \
-  BPF_INSN(BPF_LD | BPF_W | BPF_IMM, dst, 0, 0, imm)
+#define BPF_LD_IMM32(DST, IMM)                                                 \
+  BPF_INSN(BPF_LD | BPF_W | BPF_IMM, DST, 0, 0, IMM)
 
-#define BPF_LDX_MEM(size, dst, src, off)                                       \
-  BPF_INSN(BPF_LDX | BPF_SIZE(size) | BPF_MEM, dst, src, off, 0)
+#define BPF_LDX_MEM(SIZE, DST, SRC, OFF)                                       \
+  BPF_INSN(BPF_LDX | BPF_SIZE(SIZE) | BPF_MEM, DST, SRC, OFF, 0)
 
-#define BPF_STX_MEM(size, dst, src, off)                                       \
-  BPF_INSN(BPF_STX | BPF_SIZE(size) | BPF_MEM, dst, src, off, 0)
+#define BPF_STX_MEM(SIZE, DST, SRC, OFF)                                       \
+  BPF_INSN(BPF_STX | BPF_SIZE(SIZE) | BPF_MEM, DST, SRC, OFF, 0)
 
-#define BPF_JMP64_IMM(op, dst, imm, off)                                       \
-  BPF_INSN(BPF_JMP | BPF_OP(op) | BPF_K, dst, 0, off, imm)
+#define BPF_JMP64_IMM(OP, DST, IMM, OFF)                                       \
+  BPF_INSN(BPF_JMP | BPF_OP(OP) | BPF_K, DST, 0, OFF, IMM)
 
-#define BPF_JMP32_IMM(op, dst, imm, off)                                       \
-  BPF_INSN(BPF_JMP32 | BPF_OP(op) | BPF_K, dst, 0, off, imm)
+#define BPF_JMP32_IMM(OP, DST, IMM, OFF)                                       \
+  BPF_INSN(BPF_JMP32 | BPF_OP(OP) | BPF_K, DST, 0, OFF, IMM)
 
-#define BPF_ALU64_IMM(op, dst, imm)                                            \
-  BPF_INSN(BPF_ALU64 | BPF_OP(op) | BPF_K, dst, 0, 0, imm)
+#define BPF_ALU64_IMM(OP, DST, IMM)                                            \
+  BPF_INSN(BPF_ALU64 | BPF_OP(OP) | BPF_K, DST, 0, 0, IMM)
 
-#define BPF_ALU32_IMM(op, dst, imm)                                            \
-  BPF_INSN(BPF_ALU | BPF_OP(op) | BPF_K, dst, 0, 0, imm)
+#define BPF_ALU32_IMM(OP, DST, IMM)                                            \
+  BPF_INSN(BPF_ALU | BPF_OP(OP) | BPF_K, DST, 0, 0, IMM)
 
-#define BPF_ALU64_REG(op, dst, src)                                            \
-  BPF_INSN(BPF_ALU64 | BPF_OP(op) | BPF_X, dst, src, 0, 0)
+#define BPF_ALU64_REG(OP, DST, SRC)                                            \
+  BPF_INSN(BPF_ALU64 | BPF_OP(OP) | BPF_X, DST, SRC, 0, 0)
 
-#define BPF_ALU32_REG(op, dst, src)                                            \
-  BPF_INSN(BPF_ALU | BPF_OP(op) | BPF_X, dst, src, 0, 0)
+#define BPF_ALU32_REG(OP, DST, SRC)                                            \
+  BPF_INSN(BPF_ALU | BPF_OP(OP) | BPF_X, DST, SRC, 0, 0)
 
-#define BPF_MOV64_IMM(dst, imm) BPF_ALU64_IMM(BPF_MOV, dst, imm)
+#define BPF_MOV64_IMM(DST, IMM) BPF_ALU64_IMM(BPF_MOV, DST, IMM)
 
-#define BPF_MOV32_IMM(dst, imm) BPF_ALU32_IMM(BPF_MOV, dst, imm)
+#define BPF_MOV32_IMM(DST, IMM) BPF_ALU32_IMM(BPF_MOV, DST, IMM)
 
-#define BPF_MOV64_REG(dst, src) BPF_ALU64_REG(BPF_MOV, dst, src)
+#define BPF_MOV64_REG(DST, SRC) BPF_ALU64_REG(BPF_MOV, DST, SRC)
 
-#define BPF_MOV32_REG(dst, src) BPF_ALU32_REG(BPF_MOV, dst, src)
+#define BPF_MOV32_REG(DST, SRC) BPF_ALU32_REG(BPF_MOV, DST, SRC)
 
 #define BPF_EXIT_INSN() BPF_INSN(BPF_JMP | BPF_EXIT, 0, 0, 0, 0)
 
-#define BPF_RET_IMM(imm) BPF_INSN(BPF_RET | BPF_IMM, 0, 0, 0, imm)
+#define BPF_RET_IMM(IMM) BPF_INSN(BPF_RET | BPF_IMM, 0, 0, 0, IMM)
 
 #define BPF_ASM_JMP_0x3 "\xeb\01"
 #define BPF_ASM_ADD_AL_XX "\x04"
