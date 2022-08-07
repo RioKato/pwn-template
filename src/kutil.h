@@ -833,6 +833,8 @@ void bpf_map_get_info_by_fd(int fd, struct bpf_map_info *info) {
 
 #define BPF_EXIT_INSN() BPF_INSN(BPF_JMP | BPF_EXIT, 0, 0, 0, 0)
 
+#define BPF_RET_IMM(imm) BPF_INSN(BPF_RET | BPF_IMM, 0, 0, 0, imm)
+
 #endif
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
