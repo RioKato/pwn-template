@@ -15,6 +15,7 @@
 #define ENABLE_MODPROBE_PATH
 #define ENABLE_LOCK_CPU
 #define ENABLE_COMM
+#define ENABLE_BPF
 #define ENABLE_DEBUG
 
 #define PAGE_SIZE 0x1000
@@ -690,6 +691,148 @@ void set_comm(char *name) {
     ABORT("prctl");
   }
 }
+#endif
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+#ifdef ENABLE_BPF
+#include <linux/bpf.h>
+#include <stdint.h>
+#include <stdio.h>
+
+#ifdef BPF_DEBUG
+#define BPF_LOG_BUF_SIZE 0x200000
+#endif
+
+int bpf(int cmd, union bpf_attr *attr) {
+  return syscall(__NR_bpf, cmd, attr, sizeof(*attr));
+}
+
+int bpf_prog_load(uint32_t type, struct bpf_insn *insns, uint32_t cnt) {
+#ifdef BPF_DEBUG
+  char buf[BPF_LOG_BUF_SIZE] = {0};
+#endif
+
+  union bpf_attr attr = {.prog_type = type,
+                         .insn_cnt = cnt,
+                         .insns = (uint64_t)insns,
+                         .license = (uint64_t) "",
+#ifdef BPF_DEBUG
+                         .log_level = 2,
+                         .log_size = sizeof(buf),
+                         .log_buf = (uint64_t)buf
+#endif
+  };
+
+  int fd = bpf(BPF_PROG_LOAD, &attr);
+
+  if (fd == -1) {
+#ifdef BPF_DEBUG
+    puts(buf);
+#endif
+    ABORT("bpf");
+  }
+
+  return fd;
+}
+
+int bpf_map_create(union bpf_attr *attr) {
+  int fd = bpf(BPF_MAP_CREATE, attr);
+
+  if (fd == -1) {
+    ABORT("bpf");
+  }
+
+  return fd;
+}
+
+void bpf_map_update_elem(int fd, uint64_t key, void *value, uint64_t flags) {
+  union bpf_attr attr = {
+      .map_fd = fd,
+      .key = (uint64_t)&key,
+      .value = (uint64_t)value,
+      .flags = flags,
+  };
+
+  int err = bpf(BPF_MAP_UPDATE_ELEM, &attr);
+
+  if (err == -1) {
+    ABORT("bpf");
+  }
+}
+
+void bpf_map_lookup_elem(int fd, uint64_t key, void *value) {
+  union bpf_attr attr = {
+      .map_fd = fd,
+      .key = (uint64_t)&key,
+      .value = (uint64_t)value,
+  };
+
+  int err = bpf(BPF_MAP_LOOKUP_ELEM, &attr);
+
+  if (err == -1) {
+    ABORT("bpf");
+  }
+}
+
+void bpf_map_get_info_by_fd(int fd, struct bpf_map_info *info) {
+  union bpf_attr attr = {.info.bpf_fd = fd,
+                         .info.info = (uint64_t)info,
+                         .info.info_len = sizeof(*info)};
+
+  int err = bpf(BPF_OBJ_GET_INFO_BY_FD, &attr);
+
+  if (err == -1) {
+    ABORT("bpf");
+  }
+}
+
+#define BPF_INSN(code, dst, src, off, imm)                                     \
+  ((struct bpf_insn){.code = (code),                                           \
+                     .dst_reg = (dst),                                         \
+                     .src_reg = (src),                                         \
+                     .off = (off),                                             \
+                     .imm = (imm)})
+
+#define _BPF_LD_IMM64(dst, src, imm)                                           \
+  BPF_INSN(BPF_LD | BPF_DW | BPF_IMM, dst, src, 0, (uint32_t)imm),             \
+      BPF_INSN(0, 0, 0, 0, ((uint64_t)(imm)) >> 32)
+
+#define BPF_LD_IMM64(dst, imm) _BPF_LD_IMM64(dst, 0, imm)
+
+#define BPF_LD_MAP_FD(dst, fd) _BPF_LD_IMM64(dst, BPF_PSEUDO_MAP_FD, fd)
+
+#define BPF_LDX_MEM(size, dst, src, off)                                       \
+  BPF_INSN(BPF_LDX | BPF_SIZE(size) | BPF_MEM, dst, src, off, 0)
+
+#define BPF_STX_MEM(size, dst, src, off)                                       \
+  BPF_INSN(BPF_STX | BPF_SIZE(size) | BPF_MEM, dst, src, off, 0)
+
+#define BPF_JMP_IMM(op, dst, imm, off)                                         \
+  BPF_INSN(BPF_JMP | BPF_OP(op) | BPF_K, dst, 0, off, imm)
+
+#define BPF_JMP32_IMM(op, dst, imm, off)                                       \
+  BPF_INSN(BPF_JMP32 | BPF_OP(op) | BPF_K, dst, 0, off, imm)
+
+#define BPF_MOV64_IMM(dst, imm)                                                \
+  BPF_INSN(BPF_ALU64 | BPF_MOV | BPF_K, dst, 0, 0, imm)
+
+#define BPF_MOV32_IMM(dst, imm)                                                \
+  BPF_INSN(BPF_ALU | BPF_MOV | BPF_K, dst, 0, 0, imm)
+
+#define BPF_MOV64_REG(dst, src)                                                \
+  BPF_INSN(BPF_ALU64 | BPF_MOV | BPF_X, dst, src, 0, 0)
+
+#define BPF_MOV32_REG(dst, src)                                                \
+  BPF_INSN(BPF_ALU | BPF_MOV | BPF_X, dst, src, 0, 0)
+
+#define BPF_ALU64_IMM(op, dst, imm)                                            \
+  BPF_INSN(BPF_ALU64 | BPF_OP(op) | BPF_K, dst, 0, 0, imm)
+
+#define BPF_ALU64_REG(op, dst, src)                                            \
+  BPF_INSN(BPF_ALU64 | BPF_OP(op) | BPF_X, dst, src, 0, 0)
+
+#define BPF_EXIT_INSN() BPF_INSN(BPF_JMP | BPF_EXIT, 0, 0, 0, 0)
+
 #endif
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
