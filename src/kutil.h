@@ -714,7 +714,9 @@ void reenable_userfault(void *addr, size_t length) {
 #include <stdlib.h>
 #include <string.h>
 
+#ifndef EXEC_MODPROBE_PATH_FILE
 #define EXEC_MODPROBE_PATH_FILE "/tmp/trigger"
+#endif
 
 void prepare_script(char *path, char *contents) {
   FILE *fp = fopen(path, "w");
