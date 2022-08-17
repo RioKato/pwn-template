@@ -11,6 +11,7 @@
 #define ENABLE_SETXATTR
 #define ENABLE_SK_BUFF
 #define ENABLE_ROP
+#define ENABLE_FUSE
 #define ENABLE_USERFAULTFD
 #define ENABLE_MODPROBE_PATH
 #define ENABLE_LOCK_CPU
@@ -33,7 +34,6 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 #ifdef ENABLE_LDT_STRUCT
 #include <asm/ldt.h>
-#include <errno.h>
 #include <sys/syscall.h>
 #include <sys/types.h>
 #include <unistd.h>
@@ -338,7 +338,6 @@ char *peek_msgseg(int msgid, int mtype, size_t size) {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 #ifdef ENABLE_SETXATTR
-#include <errno.h>
 #include <limits.h>
 #include <stdio.h>
 #include <sys/types.h>
@@ -522,6 +521,107 @@ void rop_swapgs_restore_regs_and_return_to_usermode(unsigned long *p) {
 #endif
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+#ifndef FUSE_USE_VERSION
+#ifdef ENABLE_FUSE
+#undef ENABLE_FUSE
+#endif
+#endif
+
+#ifdef ENABLE_FUSE
+#include <fcntl.h>
+#include <fuse.h>
+#include <sys/mman.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+
+#ifndef FUSE_DIRPATH
+#define FUSE_DIRPATH "/tmp/fuse"
+#endif
+
+#ifndef FUSE_FILEPATH
+#define FUSE_FILEPATH "/fuse"
+#endif
+
+int fuse_getattr(const char *path, struct stat *stbuf) {
+  memset(stbuf, 0, sizeof(struct stat));
+  stbuf->st_mode = S_IFREG | 0777;
+  stbuf->st_nlink = 1;
+  stbuf->st_size = PAGE_SIZE;
+  return 0;
+}
+
+typedef int (*fuse_read_t)(const char *path, char *file_buf, size_t size,
+                           off_t offset, struct fuse_file_info *file_info);
+
+void fuse_run(char *path, fuse_read_t fuse_read) {
+  if (!path) {
+    path = FUSE_DIRPATH;
+  }
+
+  if (mkdir(path, 0777) == -1) {
+    switch (errno) {
+    case EEXIST:
+      break;
+    default:
+      ABORT("mkdir");
+    }
+  }
+
+  struct fuse_args args = FUSE_ARGS_INIT(0, NULL);
+  struct fuse_chan *chan = fuse_mount(path, &args);
+  if (!chan) {
+    ABORT("fuse_mount");
+  }
+
+  struct fuse_operations fops = {.getattr = fuse_getattr, .read = fuse_read};
+  struct fuse *fuse =
+      fuse_new(chan, &args, &fops, sizeof(struct fuse_operations), NULL);
+  if (!fuse) {
+    fuse_unmount(path, chan);
+    ABORT("fuse_new");
+  }
+
+  struct fuse_session *session = fuse_get_session(fuse);
+  if (!session) {
+    fuse_unmount(path, chan);
+    ABORT("fuse_get_session");
+  }
+
+  int err = fuse_set_signal_handlers(session);
+  if (err == -1) {
+    fuse_unmount(path, chan);
+    ABORT("fuse_set_signal_handlers");
+  }
+
+  fuse_loop_mt(fuse);
+  fuse_unmount(path, chan);
+}
+
+void *fuse_remmap_page(char *path, int *fd) {
+  if (!path) {
+    path = FUSE_DIRPATH FUSE_FILEPATH;
+  }
+
+  if (*fd != -1) {
+    close(*fd);
+  }
+
+  *fd = open(path, O_RDWR);
+  if (*fd == -1) {
+    ABORT("open");
+  }
+
+  void *page =
+      mmap(NULL, PAGE_SIZE, PROT_READ | PROT_WRITE, MAP_PRIVATE, *fd, 0);
+  if (page == MAP_FAILED) {
+    ABORT("mmap");
+  }
+
+  return page;
+}
+#endif
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 #ifdef ENABLE_USERFAULTFD
 #include <assert.h>
 #include <fcntl.h>
@@ -610,7 +710,6 @@ void reenable_userfault(void *addr, size_t length) {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 #ifdef ENABLE_MODPROBE_PATH
-#include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
