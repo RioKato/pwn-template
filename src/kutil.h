@@ -796,7 +796,6 @@ void set_comm(char *name) {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 #ifdef ENABLE_BPF
-#include "bpf_insn.h"
 #include <linux/bpf.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -885,6 +884,25 @@ void bpf_map_get_info_by_fd(int fd, struct bpf_map_info *info) {
 
   if (err == -1) {
     ABORT("bpf");
+  }
+}
+
+#include <linux/filter.h>
+#include <linux/seccomp.h>
+#include <sys/prctl.h>
+
+void pr_set_seccomp(struct sock_filter *filter, unsigned short len) {
+  struct sock_fprog prog = {.len = len, .filter = filter};
+
+  int err;
+  err = prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0);
+  if (err == -1) {
+    ABORT("prctl");
+  }
+
+  err = prctl(PR_SET_SECCOMP, SECCOMP_MODE_FILTER, &prog);
+  if (err == -1) {
+    ABORT("prctl");
   }
 }
 #endif
