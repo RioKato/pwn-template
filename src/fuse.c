@@ -5,10 +5,25 @@
 int counter = 0;
 int fuse_read(const char *path, char *file_buf, size_t size, off_t offset,
               struct fuse_file_info *file_info) {
+
+  char *buf[PAGE_SIZE];
+
   switch (counter++) {
   default:
     break;
   }
+
+  if (offset < sizeof(buf)) {
+    if (offset + size > sizeof(buf)) {
+      size = sizeof(buf) - offset;
+    }
+
+    memcpy(file_buf, buf + offset, size);
+  } else {
+    size = 0;
+  }
+
+  return size;
 }
 
 void *run(void *arg) {
