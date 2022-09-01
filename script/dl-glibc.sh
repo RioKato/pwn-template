@@ -15,7 +15,7 @@ clone(){
 }
 
 help(){
-  echo "$0 [-l | -d libc]"
+  echo "$0 [-c | -l | -d libc]"
 }
 
 
