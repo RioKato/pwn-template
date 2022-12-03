@@ -827,11 +827,12 @@ int bpf_prog_load(uint32_t type, struct bpf_insn *insns, uint32_t cnt) {
   int fd = bpf(BPF_PROG_LOAD, &attr);
 
   if (fd == -1) {
-#ifdef BPF_DEBUG
-    puts(buf);
-#endif
     ABORT("bpf");
   }
+
+#ifdef BPF_DEBUG
+  puts(buf);
+#endif
 
   return fd;
 }
